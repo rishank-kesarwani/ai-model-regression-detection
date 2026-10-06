@@ -17,8 +17,5 @@
     "strictBindCallApply": false,
     "forceConsistentCasingInFileNames": false,
     "noFallthroughCasesInSwitch": false,
-    "paths": {
-      "@ai-model-regression/evaluator": ["../evaluator/src/index.ts"]
-    }
   }
 }
