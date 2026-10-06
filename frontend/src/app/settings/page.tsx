@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Settings, Shield, Server, Bell, Database, GitPullRequest, CheckCircle2, Lock } from 'lucide-react';
+import { Settings, Shield, Server, Bell, Database, GitPullRequest, CheckCircle2, Lock, GitBranch } from 'lucide-react';
 
 export default function SettingsPage() {
   return (
@@ -62,11 +62,21 @@ export default function SettingsPage() {
           <div className="flex items-center justify-between">
             <h3 className="text-base font-bold text-white flex items-center gap-2">
               <GitPullRequest className="h-5 w-5 text-primary-400" />
-              <span>Downstream PR Review Platform Integration</span>
+              <span>Downstream AI PR Review Platform Integration</span>
             </h3>
             <span className="rounded bg-primary-500/10 px-2 py-0.5 text-[10px] font-semibold text-primary-400 border border-primary-500/20">
               STABLE CONTRACT
             </span>
+          </div>
+
+          <div className="rounded-xl border border-indigo-500/20 bg-indigo-500/5 p-4 text-xs text-indigo-200">
+            <div className="font-semibold text-white mb-1 flex items-center gap-1.5">
+              <GitBranch className="h-4 w-4 text-indigo-400" />
+              <span>Architecture Notice: GitHub App Ownership</span>
+            </div>
+            <p className="text-[11px] leading-relaxed text-slate-300">
+              GitHub integration is owned by the <strong>AI PR Review Platform</strong> (<code className="text-indigo-300">ai-pr-review-platform</code>). This service exposes an evaluation API consumed by GitHub-integrated applications and does not require or store its own GitHub App credentials.
+            </p>
           </div>
 
           <p className="text-xs text-slate-400 leading-relaxed">

@@ -16,7 +16,7 @@ Production-grade automated evaluation and regression detection platform for LLMs
 1. [Project Overview](#1-project-overview)
 2. [Problem Statement & Motivation](#2-problem-statement--motivation)
 3. [System Architecture & High-Level Design (HLD)](#3-system-architecture--high-level-design-hld)
-4. [Component Responsibilities](#4-component-responsibilities)
+4. [Component Responsibilities & GitHub App Boundaries](#4-component-responsibilities--github-app-boundaries)
 5. [Evaluation Lifecycle](#5-evaluation-lifecycle)
 6. [Dataset & Benchmark Architecture](#6-dataset--benchmark-architecture)
 7. [Pluggable Evaluation Engine](#7-pluggable-evaluation-engine)
@@ -29,8 +29,8 @@ Production-grade automated evaluation and regression detection platform for LLMs
 14. [Queue & Worker Architecture (Redis & BullMQ)](#14-queue--worker-architecture-redis--bullmq)
 15. [Database Schema (MongoDB)](#15-database-schema-mongodb)
 16. [Authentication & Access Control](#16-authentication--access-control)
-17. [Downstream PR Review Platform Contract](#17-downstream-pr-review-platform-contract)
-18. [GitHub PR & CI Integration](#18-github-pr--ci-integration)
+17. [Primary Service Contract (`POST /api/v1/regression/check`)](#17-primary-service-contract-post-apiv1regressioncheck)
+18. [GitHub Integration & Metadata Adapter](#18-github-integration--metadata-adapter)
 19. [Shared AI Platform Integration](#19-shared-ai-platform-integration)
 20. [Notification Service Integration](#20-notification-service-integration)
 21. [API Reference & Swagger Documentation](#21-api-reference--swagger-documentation)
@@ -71,59 +71,65 @@ This platform provides an automated, statistically grounded safeguard that catch
 
 ```mermaid
 flowchart TD
-    subgraph Clients["Clients & Upstream Integrations"]
-        UI["Next.js Web Dashboard"]
-        PRReview["ai-pr-review-platform"]
-        GitHubAction["GitHub Actions / CI Webhooks"]
+    subgraph GitHubEcosystem["GitHub Ecosystem & PR Pipeline"]
+        GH["GitHub Repositories / PRs"]
+        PRPlatform["ai-pr-review-platform (GitHub App Owner)"]
     end
 
-    subgraph BackendGateway["NestJS API Gateway (:4000)"]
+    subgraph ClientLayer["Clients & Callers"]
+        UI["Next.js Web Dashboard"]
+        CICD["CI / CD Workflows"]
+    end
+
+    subgraph RegressionPlatform["ai-model-regression-detection (:4000)"]
         Router["API Router (/api/v1)"]
+        RegCheck["POST /api/v1/regression/check"]
+        EvalAPI["POST /api/v1/evaluations"]
         AuthGuard["Optional JWT Guard"]
         ValPipe["DTO Validation & Sanitization"]
-        Swagger["Swagger Docs (/api/docs)"]
+
+        subgraph CoreModules["Core Modules"]
+            DatasetsMod["Datasets & Benchmark Versions"]
+            PromptsMod["Prompt Version Registry"]
+            BaselinesMod["Baseline Management"]
+            EvalMod["Evaluation Orchestrator"]
+            RegMod["Regression Policy Engine"]
+            ExpMod["A/B Experiments Service"]
+        end
+
+        subgraph QueueWorker["Async Execution Layer"]
+            RedisQueue[("Redis + BullMQ Queue")]
+            WorkerPool["Evaluation Workers"]
+        end
+
+        subgraph EvaluatorLib["@ai-model-regression/evaluator"]
+            ExactMatch["ExactMatch Evaluator"]
+            JSONSchema["JSONSchema Evaluator"]
+            Similarity["String Similarity Evaluator"]
+            LatencyEval["Latency Evaluator"]
+            CostEval["Cost & Pricing Calculator"]
+            JudgeEval["LLM AI Judge (Structured)"]
+            SafetyEval["Safety & Policy Evaluator"]
+            StatsEngine["Statistical Significance Engine"]
+        end
     end
 
-    subgraph Modules["Core Platform Modules"]
-        DatasetsMod["Datasets & Benchmark Versions"]
-        PromptsMod["Prompt Version Registry"]
-        BaselinesMod["Baseline Management"]
-        EvalMod["Evaluation Orchestrator"]
-        RegMod["Regression Policy Engine"]
-        ExpMod["A/B Experiments Service"]
-    end
-
-    subgraph QueueWorker["Async Execution Layer"]
-        RedisQueue[("Redis + BullMQ Queue")]
-        WorkerPool["Evaluation Workers"]
-    end
-
-    subgraph EvaluatorLib["@ai-model-regression/evaluator"]
-        ExactMatch["ExactMatch Evaluator"]
-        JSONSchema["JSONSchema Evaluator"]
-        Similarity["String Similarity Evaluator"]
-        LatencyEval["Latency Evaluator"]
-        CostEval["Cost & Pricing Calculator"]
-        JudgeEval["LLM AI Judge (Structured)"]
-        SafetyEval["Safety & Policy Evaluator"]
-        StatsEngine["Statistical Significance Engine"]
-    end
-
-    subgraph ExternalServices["External Microservices"]
-        AIPlatform["Shared AI Platform (Gateway)"]
-        NotifService["Notification Service"]
+    subgraph ExternalServices["Shared Portfolio Microservices"]
+        AIPlatform["Shared AI Platform (Model Gateway)"]
+        NotifService["Notification Service (Alerts)"]
     end
 
     subgraph Storage["Persistence Layer"]
         MongoDB[("MongoDB Database")]
     end
 
+    GH -- Webhooks / PR Ingress --> PRPlatform
+    PRPlatform -- "POST /api/v1/regression/check" --> RegCheck
     UI --> Router
-    PRReview --> Router
-    GitHubAction --> Router
+    CICD --> Router
 
     Router --> AuthGuard --> ValPipe
-    ValPipe --> DatasetsMod & PromptsMod & BaselinesMod & EvalMod & RegMod & ExpMod
+    ValPipe --> CoreModules
 
     EvalMod --> RedisQueue
     RedisQueue --> WorkerPool
@@ -134,20 +140,34 @@ flowchart TD
 
     WorkerPool --> Storage
     WorkerPool --> NotifService
-    DatasetsMod & BaselinesMod & PromptsMod --> MongoDB
+    CoreModules --> MongoDB
+
+    PRPlatform -- "GitHub Checks & Comments" --> GH
 ```
 
 ---
 
-## 4. Component Responsibilities
+## 4. Component Responsibilities & GitHub App Boundaries
 
-| Component | Technology | Primary Responsibilities |
-| :--- | :--- | :--- |
-| **`evaluator/`** | TypeScript, AJV, Jest | Pure functional evaluators, statistical analysis (Welch t-test, confidence intervals), pricing calculator, baseline comparison, and regression policy engine. |
-| **`backend/`** | NestJS, Mongoose, BullMQ, Redis, Passport, Swagger | REST API, async evaluation orchestration, dataset versioning, baseline tracking, PR review contract endpoint, and webhook handling. |
-| **`frontend/`** | Next.js 15, React 19, TailwindCSS, Lucide | Interactive dashboards, evaluation reports, baseline promotion visualizer, A/B experiment diffs, and prompt registry. |
-| **`AI Platform`** | External Microservice | Centralized model gateway providing completion inferences and AI Judge evaluations via API key authentication. |
-| **`Notification Service`** | External Microservice | Centralized alert dispatching (Slack, Email, Webhooks) on regression detection and evaluation failures. |
+### Architectural Boundary Notice
+
+> [!IMPORTANT]
+> **GitHub App ownership belongs exclusively to `ai-pr-review-platform`.**
+> `ai-model-regression-detection` is an independent evaluation engine and **does not** require, store, or generate GitHub App tokens, private keys, or webhook secrets.
+
+| Responsibility Area | `ai-pr-review-platform` | `ai-model-regression-detection` |
+| :--- | :---: | :---: |
+| **GitHub App Ownership & Keys** | **Yes** (`APP_ID`, `PRIVATE_KEY`) | **No** |
+| **GitHub Webhook Ingress & Verification** | **Yes** (HMAC Signature Validation) | **No** |
+| **Dynamic Installation Token Generation**| **Yes** | **No** |
+| **Fetching PR Diffs & File Blobs** | **Yes** (via GitHub API) | **No** |
+| **Posting PR Review Comments & Checks** | **Yes** (via GitHub Checks API) | **No** |
+| **Benchmark Datasets & Immutable Versions**| No | **Yes** (SHA-256 Content Hashes) |
+| **Multi-Metric Evaluation Engine** | No | **Yes** (9 Pluggable Evaluators) |
+| **Baseline Promotion & Historical Drift** | No | **Yes** |
+| **Regression Policy Enforcement** | No | **Yes** (WARN / FAIL Thresholds) |
+| **Statistical Significance Testing** | No | **Yes** (Welch t-test, 95% CIs) |
+| **PASS / WARN / FAIL Decisions** | Consumes Decision | **Yes** (Generates Decision) |
 
 ---
 
@@ -157,35 +177,36 @@ flowchart TD
 sequenceDiagram
     autonumber
     actor Developer
-    participant CI as CI / PR Review Platform
-    participant API as Backend API
-    participant Queue as Redis / BullMQ
+    participant GH as GitHub PR
+    participant PRPlatform as ai-pr-review-platform
+    participant API as ai-model-regression-detection
     participant Worker as Evaluation Worker
     participant AIP as Shared AI Platform
     participant Engine as Regression Engine
     participant DB as MongoDB
     participant Notif as Notification Service
 
-    CI->>API: POST /api/v1/regression/check
-    API->>DB: Fetch Dataset (Version) & Active Baseline
-    API->>DB: Create EvaluationRun (Status: QUEUED)
-    API->>Queue: Enqueue Evaluation Cases
-    Queue->>Worker: Dispatch Case Processing
-    loop Each Evaluation Case
-        Worker->>AIP: Generate Model Completion
+    Developer->>GH: Open / Update Pull Request
+    GH->>PRPlatform: PR Webhook Event (Verified by PR Platform)
+    PRPlatform->>API: POST /api/v1/regression/check
+    API->>DB: Fetch Dataset Version & Active Baseline
+    API->>Worker: Dispatch Evaluation Cases
+    loop Each Benchmark Case
+        Worker->>AIP: Model Completion Request
         AIP-->>Worker: Completion, Latency, Token Usage
         Worker->>Engine: Run Evaluators (Exact, Schema, Similarity, Cost, Judge, Safety)
         Worker->>DB: Save EvaluationResult
     end
-    Worker->>Engine: Calculate Descriptive Stats (Mean, Median, p95)
-    Worker->>Engine: Compare Candidate Metrics vs Baseline
+    Worker->>Engine: Compute Descriptive Stats & Welch t-test
+    Worker->>Engine: Compare Candidate vs Baseline
     Engine-->>Worker: Decision (PASS / WARN / FAIL), Delta %, Regressions
     Worker->>DB: Update EvaluationRun (Status: COMPLETED)
     alt Regression Detected (WARN or FAIL)
-        Worker->>Notif: Dispatch Alert Event
+        Worker->>Notif: Dispatch Regression Alert Event
     end
-    Worker-->>API: Return Regression Summary
-    API-->>CI: Respond with RegressionCheckResponseDto
+    Worker-->>API: Return Summary & Regressions
+    API-->>PRPlatform: Return RegressionCheckResponseDto
+    PRPlatform->>GH: Post GitHub Check Status & Inline PR Comment
 ```
 
 ---
@@ -346,7 +367,7 @@ Model pricing is dynamically configurable via the `ModelPricing` catalog:
 | `prompts` | `project`, `slug` (unique), `createdAt` | Prompts, templates, and SHA-256 hashes |
 | `modelpricings` | `provider`, `model` (unique) | Dynamic token pricing metadata |
 | `experiments` | `project`, `createdAt` | A/B model/prompt comparison experiments |
-| `webhookevents` | `source`, `createdAt` | External GitHub/CI webhook audit logs |
+| `webhookevents` | `source`, `createdAt` | External evaluation metadata audit logs |
 
 ---
 
@@ -360,9 +381,9 @@ The platform adheres to portfolio engineering standards:
 
 ---
 
-## 17. Downstream PR Review Platform Contract
+## 17. Primary Service Contract (`POST /api/v1/regression/check`)
 
-The platform exposes a stable contract consumed by **`ai-pr-review-platform`**:
+This is the primary endpoint consumed by **`ai-pr-review-platform`**:
 
 ### Endpoint: `POST /api/v1/regression/check`
 
@@ -416,10 +437,12 @@ The platform exposes a stable contract consumed by **`ai-pr-review-platform`**:
 
 ---
 
-## 18. GitHub PR & CI Integration
+## 18. GitHub Integration & Metadata Adapter
 
 ### Endpoint: `POST /api/v1/github/evaluations`
-Receives GitHub PR events (`repository`, `pullRequest`, `commitSha`, evaluation configuration) to trigger PR checks and report status back to GitHub checks.
+A lightweight metadata adapter endpoint for external CI/CD pipelines to trigger an evaluation with repository and commit metadata (`repository`, `pullRequest`, `commitSha`).
+
+> **Note**: This endpoint is provider-independent. It does not validate GitHub webhook signatures, require a `GITHUB_APP_TOKEN`, or make outbound calls to GitHub APIs.
 
 ---
 
@@ -465,7 +488,7 @@ http://localhost:4000/api/docs
 | `POST`| `/api/v1/evaluations/:id/cancel` | Cancel active evaluation run |
 | `POST`| `/api/v1/baselines` | Promote run to baseline |
 | `GET` | `/api/v1/baselines` | List all baselines |
-| `POST`| `/api/v1/regression/check`| PR review regression check contract |
+| `POST`| `/api/v1/regression/check`| Primary PR review regression check contract |
 | `GET` | `/api/v1/regression/history`| Historical regression incidents |
 | `POST`| `/api/v1/experiments` | Run A/B model/prompt comparison |
 | `GET` | `/api/v1/models/pricing` | Get model pricing catalog |
@@ -534,20 +557,44 @@ The frontend API client automatically normalizes `NEXT_PUBLIC_API_URL`:
 
 ## 26. Environment Variables
 
-See [.env.example](file:///.env.example) for a complete reference:
+See [.env.example](file:///.env.example) for the full reference:
 
 ```env
+# Application
 PORT=4000
 HOST=0.0.0.0
 NODE_ENV=production
+
+# Database
 MONGODB_URI=mongodb+srv://...
+
+# Redis
 REDIS_URL=redis://default:...
-JWT_SECRET=super-secret-jwt-key...
+REDIS_HOST=localhost
+REDIS_PORT=6379
+REDIS_PASSWORD=
+REDIS_TLS=false
+
+# Authentication
+JWT_ACCESS_SECRET=super-secret-jwt-key...
+JWT_REFRESH_SECRET=super-secret-jwt-refresh-key...
+JWT_ACCESS_EXPIRATION=15m
+JWT_REFRESH_EXPIRATION=7d
+
+# Application Configuration
 PUBLIC_ACCESS_ENABLED=true
+RATE_LIMIT_TTL=60
+RATE_LIMIT_MAX=100
+
+# Shared AI Platform (Backend only - model completion & AI judge gateway)
 AI_PLATFORM_BASE_URL=https://ai-platform.example.com/api/v1
 AI_PLATFORM_MODEL_REGRESSION_API_KEY=mr_aip_live_secret_key_...
+
+# Notification Service (Backend only - regression alerts & evaluation summaries)
 NOTIFICATION_SERVICE_BASE_URL=https://notifications.example.com/api/v1
 NOTIFICATION_MODEL_REGRESSION_API_KEY=mr_notif_live_secret_key_...
+
+# Frontend Environment Variable
 NEXT_PUBLIC_API_URL=http://localhost:4000/api/v1
 ```
 

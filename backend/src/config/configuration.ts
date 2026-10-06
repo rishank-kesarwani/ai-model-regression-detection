@@ -17,6 +17,10 @@ export interface AppConfig {
     refreshExpiresIn: string;
   };
   publicAccessEnabled: boolean;
+  rateLimit: {
+    ttl: number;
+    max: number;
+  };
   aiPlatform: {
     baseUrl: string;
     apiKey: string;
@@ -24,9 +28,6 @@ export interface AppConfig {
   notification: {
     baseUrl: string;
     apiKey: string;
-  };
-  github: {
-    webhookSecret: string;
   };
   worker: {
     concurrency: number;
@@ -48,12 +49,16 @@ export default (): AppConfig => ({
     tls: process.env.REDIS_TLS === 'true',
   },
   jwt: {
-    secret: process.env.JWT_SECRET || 'dev-secret-change-in-production-min-32-chars-long',
+    secret: process.env.JWT_ACCESS_SECRET || process.env.JWT_SECRET || 'dev-secret-change-in-production-min-32-chars-long',
     refreshSecret: process.env.JWT_REFRESH_SECRET || 'dev-refresh-secret-change-in-production',
-    expiresIn: process.env.JWT_EXPIRATION || '15m',
+    expiresIn: process.env.JWT_ACCESS_EXPIRATION || process.env.JWT_EXPIRATION || '15m',
     refreshExpiresIn: process.env.JWT_REFRESH_EXPIRATION || '7d',
   },
   publicAccessEnabled: process.env.PUBLIC_ACCESS_ENABLED !== 'false',
+  rateLimit: {
+    ttl: parseInt(process.env.RATE_LIMIT_TTL || '60', 10),
+    max: parseInt(process.env.RATE_LIMIT_MAX || '100', 10),
+  },
   aiPlatform: {
     baseUrl: process.env.AI_PLATFORM_BASE_URL || 'https://ai-platform.rishankkesharwani.com/api/v1',
     apiKey: process.env.AI_PLATFORM_MODEL_REGRESSION_API_KEY || 'mock-ai-platform-key',
@@ -61,9 +66,6 @@ export default (): AppConfig => ({
   notification: {
     baseUrl: process.env.NOTIFICATION_SERVICE_BASE_URL || 'https://notifications.rishankkesharwani.com/api/v1',
     apiKey: process.env.NOTIFICATION_MODEL_REGRESSION_API_KEY || 'mock-notification-key',
-  },
-  github: {
-    webhookSecret: process.env.GITHUB_WEBHOOK_SECRET || 'dev-gh-secret',
   },
   worker: {
     concurrency: parseInt(process.env.EVAL_WORKER_CONCURRENCY || '5', 10),
