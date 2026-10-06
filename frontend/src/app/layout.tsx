@@ -12,6 +12,14 @@ const inter = Inter({ subsets: ['latin'] });
 export const metadata: Metadata = {
   title: 'AI Model Regression Detection & Evaluation Platform',
   description: 'Production-grade platform for continuous regression detection and benchmark evaluation in LLM systems.',
+  icons: {
+    icon: [
+      { url: '/logo.svg', type: 'image/svg+xml' },
+      { url: '/logo.png', type: 'image/png' },
+    ],
+    shortcut: '/logo.svg',
+    apple: '/logo.png',
+  },
 };
 
 export default function RootLayout({

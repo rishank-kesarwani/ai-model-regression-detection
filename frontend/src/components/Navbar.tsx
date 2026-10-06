@@ -2,8 +2,9 @@
 
 import React from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useAuth } from '@/lib/auth-context';
-import { ShieldCheck, LogIn, LogOut, Terminal, Activity, Bell } from 'lucide-react';
+import { LogIn, LogOut, Terminal, Activity, Bell } from 'lucide-react';
 
 export function Navbar() {
   const { user, openLoginModal, logout } = useAuth();
@@ -12,9 +13,16 @@ export function Navbar() {
     <header className="sticky top-0 z-40 w-full border-b border-surface-border bg-surface/80 backdrop-blur-md">
       <div className="flex h-16 items-center justify-between px-6">
         <div className="flex items-center gap-3">
-          <Link href="/" className="flex items-center gap-2.5">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-tr from-primary-600 to-indigo-400 text-white shadow-lg shadow-primary-500/25">
-              <ShieldCheck className="h-5 w-5" />
+          <Link href="/" className="flex items-center gap-3 group">
+            <div className="relative flex h-10 w-10 items-center justify-center rounded-xl overflow-hidden shadow-lg shadow-primary-500/20 ring-1 ring-primary-500/30 group-hover:ring-primary-400 transition">
+              <Image
+                src="/logo.svg"
+                alt="AI Model Regression Logo"
+                width={40}
+                height={40}
+                className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                priority
+              />
             </div>
             <div>
               <span className="font-bold tracking-tight text-white flex items-center gap-2 text-base">
