@@ -1,0 +1,45 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        node-version: [20.x, 22.x]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build Evaluator Package
+        run: npm run build --workspace=evaluator
+
+      - name: Run Evaluator Tests
+        run: npm run test --workspace=evaluator
+
+      - name: Build Backend Service
+        run: npm run build --workspace=backend
+
+      - name: Run Backend Tests
+        run: npm run test --workspace=backend
+
+      - name: Build Frontend Application
+        run: npm run build --workspace=frontend
+        env:
+          NEXT_PUBLIC_API_URL: https://api.model-regression.example.com/api/v1

@@ -1,0 +1,29 @@
+{
+  "name": "ai-model-regression-detection-workspace",
+  "version": "1.0.0",
+  "description": "Production-grade AI Model Regression Detection and Evaluation Platform",
+  "private": true,
+  "workspaces": [
+    "evaluator",
+    "backend",
+    "frontend"
+  ],
+  "scripts": {
+    "build": "npm run build --workspace=evaluator && npm run build --workspace=backend && npm run build --workspace=frontend",
+    "test": "npm run test --workspace=evaluator && npm run test --workspace=backend",
+    "start:backend": "npm run start:prod --workspace=backend",
+    "start:frontend": "npm run start --workspace=frontend",
+    "dev:backend": "npm run start:dev --workspace=backend",
+    "dev:frontend": "npm run dev --workspace=frontend"
+  },
+  "keywords": [
+    "ai",
+    "regression-detection",
+    "evaluation",
+    "llm-metrics",
+    "ci-cd",
+    "llmops"
+  ],
+  "author": "rishank-kesarwani",
+  "license": "MIT"
+}
