@@ -1,8 +1,8 @@
 {
   "name": "ai-model-regression-backend",
   "version": "1.0.0",
-  "description": "Production NestJS backend for AI Model Regression Detection and Evaluation Platform",
   "scripts": {
+    "prebuild": "node -e \"const fs=require('fs'); if(!fs.existsSync('../evaluator/dist')) { require('child_process').execSync('npm run build', {cwd: '../evaluator', stdio: 'inherit'}); }\"",
     "build": "nest build",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
     "start": "nest start",
