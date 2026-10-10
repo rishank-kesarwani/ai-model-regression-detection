@@ -5,6 +5,7 @@ import { RegressionCheckDto, RegressionCheckResponseDto } from './dto/regression
 import { OptionalJwtAuthGuard } from '../auth/jwt.strategy';
 import { ApiResponseDto } from '../common/dto/api-response.dto';
 import { RequireServiceAuth, PublicReadOnly } from '../auth/decorators/auth-policy.decorator';
+import { RateLimit } from '../common/decorators/rate-limit.decorator';
 
 @ApiTags('Regression Engine & Integration Contract')
 @Controller('regression')
@@ -13,6 +14,7 @@ export class RegressionController {
   constructor(private readonly regressionService: RegressionService) {}
 
   @RequireServiceAuth({ allowUser: true })
+  @RateLimit({ limit: 30, ttlSeconds: 60 })
   @Post('check')
   @HttpCode(HttpStatus.OK)
   @ApiHeader({

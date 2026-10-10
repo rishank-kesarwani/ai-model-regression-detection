@@ -238,7 +238,8 @@ export class ServiceApiKeyRegistry implements OnModuleInit {
    */
   private resolveAllowedProjects(rawToken: string, normalizedName: string): string[] {
     const customProjectsVar = `MODEL_REGRESSION_CLIENT_${rawToken.toUpperCase()}_PROJECTS`;
-    const customProjects = process.env[customProjectsVar]?.trim();
+    const customAllowedVar = `MODEL_REGRESSION_CLIENT_${rawToken.toUpperCase()}_ALLOWED_PROJECTS`;
+    const customProjects = process.env[customProjectsVar]?.trim() || process.env[customAllowedVar]?.trim();
 
     if (customProjects) {
       return customProjects.split(',').map((p) => p.trim()).filter(Boolean);

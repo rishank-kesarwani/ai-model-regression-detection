@@ -2,9 +2,11 @@
 
 import React, { useEffect, useState } from 'react';
 import { apiClient } from '@/lib/api-client';
-import { GitCompare, CheckCircle2, Shield, Plus, ArrowRight, Layers } from 'lucide-react';
+import { useAuth } from '@/lib/auth-context';
+import { GitCompare, CheckCircle2, Shield, Plus, ArrowRight, Layers, Info, ShieldAlert } from 'lucide-react';
 
 export default function BaselinesPage() {
+  const { user, requireAuth, isPublicAccessEnabled, openLoginModal } = useAuth();
   const [baselines, setBaselines] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -49,12 +51,14 @@ export default function BaselinesPage() {
   };
 
   const handleActivate = async (id: string) => {
-    try {
-      await apiClient.post(`/baselines/${id}/activate`);
-      fetchBaselines();
-    } catch (err: any) {
-      alert(`Failed to activate: ${err.message}`);
-    }
+    requireAuth(async () => {
+      try {
+        await apiClient.post(`/baselines/${id}/activate`);
+        fetchBaselines();
+      } catch (err: any) {
+        alert(`Failed to activate: ${err.message}`);
+      }
+    }, 'Operator login required: Activating production baselines requires privileged access.');
   };
 
   return (
@@ -71,13 +75,53 @@ export default function BaselinesPage() {
         </div>
 
         <button
-          onClick={() => setShowModal(true)}
+          onClick={() =>
+            requireAuth(
+              () => setShowModal(true),
+              'Operator login required: Promoting new baselines requires privileged access.',
+            )
+          }
           className="flex items-center gap-2 rounded-lg bg-primary-600 hover:bg-primary-500 px-4 py-2 text-xs font-semibold text-white transition shadow-lg shadow-primary-600/20"
         >
           <Plus className="h-4 w-4" />
           <span>Promote Baseline</span>
         </button>
       </div>
+
+      {/* Demo / Access Status Banner */}
+      {!user && (
+        isPublicAccessEnabled ? (
+          <div className="flex items-center justify-between gap-3 rounded-xl border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-xs text-amber-300">
+            <div className="flex items-center gap-2.5">
+              <Info className="h-4 w-4 shrink-0 text-amber-400" />
+              <span>
+                <strong>Public Demo Mode Active:</strong> Baselines are shown in read-only mode. Operator authentication is required to activate or promote baselines.
+              </span>
+            </div>
+            <button
+              onClick={() => openLoginModal('Sign in to manage baselines.')}
+              className="shrink-0 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 px-3 py-1 text-xs font-semibold text-amber-200 transition border border-amber-500/30"
+            >
+              Sign In
+            </button>
+          </div>
+        ) : (
+          <div className="flex items-center justify-between gap-3 rounded-xl border border-rose-500/20 bg-rose-500/10 px-4 py-3 text-xs text-rose-300">
+            <div className="flex items-center gap-2.5">
+              <ShieldAlert className="h-4 w-4 shrink-0 text-rose-400" />
+              <span>
+                <strong>Authentication Required:</strong> Public access is disabled in this environment. Please authenticate to view baselines.
+              </span>
+            </div>
+            <button
+              onClick={() => openLoginModal()}
+              className="shrink-0 rounded-lg bg-rose-600 hover:bg-rose-500 px-3 py-1 text-xs font-semibold text-white transition"
+            >
+              Sign In Now
+            </button>
+          </div>
+        )
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
         {baselines.map((b) => (

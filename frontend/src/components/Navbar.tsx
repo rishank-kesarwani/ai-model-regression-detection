@@ -37,7 +37,7 @@ const navItems = [
 ];
 
 export function Navbar() {
-  const { user, openLoginModal, logout } = useAuth();
+  const { user, openLoginModal, logout, isPublicAccessEnabled } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const pathname = usePathname();
 
@@ -112,13 +112,21 @@ export function Navbar() {
               </button>
             </div>
           ) : (
-            <button
-              onClick={openLoginModal}
-              className="flex items-center gap-1.5 text-xs font-medium bg-primary-600 hover:bg-primary-500 text-white px-3 sm:px-3.5 py-1.5 rounded-lg transition shadow-md shadow-primary-600/20 shrink-0"
-            >
-              <LogIn className="h-3.5 w-3.5" />
-              <span>Sign In</span>
-            </button>
+            <div className="flex items-center gap-2 shrink-0">
+              {isPublicAccessEnabled && (
+                <span className="hidden sm:inline-flex items-center gap-1.5 rounded-full bg-amber-500/10 px-2.5 py-1 text-[11px] font-medium text-amber-400 border border-amber-500/20">
+                  <span className="h-1.5 w-1.5 rounded-full bg-amber-400 animate-pulse"></span>
+                  Demo Mode
+                </span>
+              )}
+              <button
+                onClick={() => openLoginModal()}
+                className="flex items-center gap-1.5 text-xs font-medium bg-primary-600 hover:bg-primary-500 text-white px-3 sm:px-3.5 py-1.5 rounded-lg transition shadow-md shadow-primary-600/20 shrink-0"
+              >
+                <LogIn className="h-3.5 w-3.5" />
+                <span>Sign In</span>
+              </button>
+            </div>
           )}
         </div>
       </div>

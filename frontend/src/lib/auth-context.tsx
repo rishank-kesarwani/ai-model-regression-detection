@@ -3,36 +3,53 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { apiClient } from './api-client';
 
-interface User {
+export interface User {
   id: string;
   username: string;
   roles: string[];
 }
 
-interface AuthContextType {
+export interface AuthContextType {
   user: User | null;
   isLoading: boolean;
   isLoginModalOpen: boolean;
-  openLoginModal: () => void;
+  loginReason: string;
+  isPublicAccessEnabled: boolean;
+  openLoginModal: (reason?: string) => void;
   closeLoginModal: () => void;
   login: (username: string, pass: string) => Promise<void>;
   logout: () => Promise<void>;
+  requireAuth: (action: () => void | Promise<void>, reason?: string) => void;
 }
+
+const defaultPublicAccess =
+  typeof process !== 'undefined' && process.env.NEXT_PUBLIC_ACCESS_ENABLED !== undefined
+    ? String(process.env.NEXT_PUBLIC_ACCESS_ENABLED).toLowerCase() !== 'false'
+    : true;
 
 const AuthContext = createContext<AuthContextType>({
   user: null,
   isLoading: true,
   isLoginModalOpen: false,
+  loginReason: '',
+  isPublicAccessEnabled: defaultPublicAccess,
   openLoginModal: () => {},
   closeLoginModal: () => {},
   login: async () => {},
   logout: async () => {},
+  requireAuth: () => {},
 });
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
+  const [loginReason, setLoginReason] = useState<string>('');
+
+  const isPublicAccessEnabled =
+    typeof process !== 'undefined' && process.env.NEXT_PUBLIC_ACCESS_ENABLED !== undefined
+      ? String(process.env.NEXT_PUBLIC_ACCESS_ENABLED).toLowerCase() !== 'false'
+      : true;
 
   useEffect(() => {
     async function checkAuth() {
@@ -52,11 +69,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     checkAuth();
   }, []);
 
+  const openLoginModal = (reason?: string) => {
+    setLoginReason(reason || '');
+    setIsLoginModalOpen(true);
+  };
+
+  const closeLoginModal = () => {
+    setIsLoginModalOpen(false);
+    setLoginReason('');
+  };
+
   const login = async (username: string, pass: string) => {
     const res = await apiClient.post<{ user: User }>('/auth/login', { username, password: pass });
     if (res?.user) {
       setUser(res.user);
       setIsLoginModalOpen(false);
+      setLoginReason('');
     }
   };
 
@@ -68,16 +96,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const requireAuth = (action: () => void | Promise<void>, reason?: string) => {
+    if (user) {
+      action();
+    } else {
+      openLoginModal(reason || 'Authentication required for this operation.');
+    }
+  };
+
   return (
     <AuthContext.Provider
       value={{
         user,
         isLoading,
         isLoginModalOpen,
-        openLoginModal: () => setIsLoginModalOpen(true),
-        closeLoginModal: () => setIsLoginModalOpen(false),
+        loginReason,
+        isPublicAccessEnabled,
+        openLoginModal,
+        closeLoginModal,
         login,
         logout,
+        requireAuth,
       }}
     >
       {children}

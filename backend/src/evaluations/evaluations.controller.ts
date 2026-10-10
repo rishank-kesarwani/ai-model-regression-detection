@@ -18,6 +18,7 @@ import {
   RequireOperator,
   PublicReadOnly,
 } from '../auth/decorators/auth-policy.decorator';
+import { RateLimit } from '../common/decorators/rate-limit.decorator';
 
 @ApiTags('Evaluations')
 @Controller('evaluations')
@@ -26,6 +27,7 @@ export class EvaluationsController {
   constructor(private readonly evaluationsService: EvaluationsService) {}
 
   @RequireServiceAuth({ allowUser: true })
+  @RateLimit({ limit: 20, ttlSeconds: 60 })
   @Post()
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Trigger an evaluation run against a dataset and baseline (Service API key or User JWT)' })

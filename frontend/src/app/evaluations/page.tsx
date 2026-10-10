@@ -4,9 +4,11 @@ import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { apiClient } from '@/lib/api-client';
 import { DecisionBadge } from '@/components/DecisionBadge';
-import { PlayCircle, Plus, Filter, ArrowRight, Clock, Cpu } from 'lucide-react';
+import { useAuth } from '@/lib/auth-context';
+import { PlayCircle, Plus, Filter, ArrowRight, Clock, Cpu, Info, ShieldAlert } from 'lucide-react';
 
 export default function EvaluationsPage() {
+  const { user, requireAuth, isPublicAccessEnabled, openLoginModal } = useAuth();
   const [runs, setRuns] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -65,13 +67,53 @@ export default function EvaluationsPage() {
         </div>
 
         <button
-          onClick={() => setShowModal(true)}
+          onClick={() =>
+            requireAuth(
+              () => setShowModal(true),
+              'Authentication required: Triggering new evaluation runs requires an authenticated user or service credentials.',
+            )
+          }
           className="flex items-center gap-2 rounded-lg bg-primary-600 hover:bg-primary-500 px-4 py-2 text-xs font-semibold text-white transition shadow-lg shadow-primary-600/20"
         >
           <Plus className="h-4 w-4" />
           <span>New Evaluation Run</span>
         </button>
       </div>
+
+      {/* Demo / Access Status Banner */}
+      {!user && (
+        isPublicAccessEnabled ? (
+          <div className="flex items-center justify-between gap-3 rounded-xl border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-xs text-amber-300">
+            <div className="flex items-center gap-2.5">
+              <Info className="h-4 w-4 shrink-0 text-amber-400" />
+              <span>
+                <strong>Public Demo Mode Active:</strong> You are viewing demonstration runs in read-only mode. Sign in to launch new model evaluation jobs.
+              </span>
+            </div>
+            <button
+              onClick={() => openLoginModal('Sign in to launch evaluation runs.')}
+              className="shrink-0 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 px-3 py-1 text-xs font-semibold text-amber-200 transition border border-amber-500/30"
+            >
+              Sign In
+            </button>
+          </div>
+        ) : (
+          <div className="flex items-center justify-between gap-3 rounded-xl border border-rose-500/20 bg-rose-500/10 px-4 py-3 text-xs text-rose-300">
+            <div className="flex items-center gap-2.5">
+              <ShieldAlert className="h-4 w-4 shrink-0 text-rose-400" />
+              <span>
+                <strong>Authentication Required:</strong> Public access is disabled in this environment. Please authenticate to view runs.
+              </span>
+            </div>
+            <button
+              onClick={() => openLoginModal()}
+              className="shrink-0 rounded-lg bg-rose-600 hover:bg-rose-500 px-3 py-1 text-xs font-semibold text-white transition"
+            >
+              Sign In Now
+            </button>
+          </div>
+        )
+      )}
 
       <div className="glass-card rounded-2xl p-6 border border-surface-border">
         <div className="overflow-x-auto">

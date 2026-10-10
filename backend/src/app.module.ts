@@ -15,7 +15,9 @@ import { RegressionModule } from './regression/regression.module';
 import { GitHubModule } from './github/github.module';
 import { ExperimentsModule } from './experiments/experiments.module';
 import { MetricsModule } from './metrics/metrics.module';
+import { APP_GUARD } from '@nestjs/core';
 import { CorrelationIdMiddleware } from './common/middleware/correlation-id.middleware';
+import { RateLimitGuard } from './common/guards/rate-limit.guard';
 
 @Module({
   imports: [
@@ -48,6 +50,12 @@ import { CorrelationIdMiddleware } from './common/middleware/correlation-id.midd
     GitHubModule,
     ExperimentsModule,
     MetricsModule,
+  ],
+  providers: [
+    {
+      provide: APP_GUARD,
+      useClass: RateLimitGuard,
+    },
   ],
 })
 export class AppModule implements NestModule {

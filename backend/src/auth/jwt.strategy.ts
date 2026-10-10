@@ -94,12 +94,20 @@ export class OptionalJwtAuthGuard extends AuthGuard('jwt') {
       return (await super.canActivate(context)) as boolean;
     }
 
-    // 5. Check Public / Read-Only Decorators
+    // 5. Explicit Public Endpoints (Health, Auth Login/Refresh/Logout)
+    // These ALWAYS allow unauthenticated access regardless of PUBLIC_ACCESS_ENABLED
     const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
       context.getHandler(),
       context.getClass(),
     ]);
 
+    if (isPublic) {
+      if (serviceAuthenticated) return true;
+      return true;
+    }
+
+    // 6. Public Read-Only Demo Endpoints (GET /evaluations, GET /baselines, etc.)
+    // Allowed anonymously ONLY IF PUBLIC_ACCESS_ENABLED is true!
     const isPublicReadOnly = this.reflector.getAllAndOverride<boolean>(
       PUBLIC_READ_ONLY_KEY,
       [context.getHandler(), context.getClass()],
@@ -107,7 +115,7 @@ export class OptionalJwtAuthGuard extends AuthGuard('jwt') {
 
     const publicAccessEnabled = this.configService.get<boolean>('publicAccessEnabled', true);
 
-    if (isPublic || (isPublicReadOnly && publicAccessEnabled) || publicAccessEnabled) {
+    if (isPublicReadOnly && publicAccessEnabled) {
       // If service already authenticated via key, allow
       if (serviceAuthenticated) {
         return true;
@@ -120,7 +128,7 @@ export class OptionalJwtAuthGuard extends AuthGuard('jwt') {
         try {
           return (await super.canActivate(context)) as boolean;
         } catch {
-          // Fall through to anonymous
+          // Fall through to anonymous demo
         }
       }
 
@@ -133,12 +141,25 @@ export class OptionalJwtAuthGuard extends AuthGuard('jwt') {
       return true;
     }
 
-    // 6. Default protected endpoint
+    // 7. Otherwise: Either publicAccessEnabled is false, or the route is not @Public / @PublicReadOnly.
+    // Full user authentication (or service authentication) is strictly required!
     if (serviceAuthenticated) return true;
     return (await super.canActivate(context)) as boolean;
   }
 
   handleRequest(err: any, user: any, info: any, context: ExecutionContext) {
+    const isOperatorRequired = this.reflector.getAllAndOverride<boolean>(
+      REQUIRE_OPERATOR_KEY,
+      [context.getHandler(), context.getClass()],
+    );
+    const isUserRequired = this.reflector.getAllAndOverride<boolean>(
+      REQUIRE_USER_KEY,
+      [context.getHandler(), context.getClass()],
+    );
+    const serviceAuthOptions = this.reflector.getAllAndOverride<ServiceAuthOptions>(
+      REQUIRE_SERVICE_AUTH_KEY,
+      [context.getHandler(), context.getClass()],
+    );
     const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
       context.getHandler(),
       context.getClass(),
@@ -149,10 +170,14 @@ export class OptionalJwtAuthGuard extends AuthGuard('jwt') {
     );
     const publicAccessEnabled = this.configService.get<boolean>('publicAccessEnabled', true);
 
-    if (user) return user;
+    if (user && (!user.roles || !user.roles.includes('anonymous'))) {
+      return user;
+    }
 
-    if (isPublic || (isPublicReadOnly && publicAccessEnabled) || publicAccessEnabled) {
-      return { userId: 'anonymous', username: 'Anonymous User', roles: ['anonymous'] };
+    if (!isOperatorRequired && !isUserRequired && !serviceAuthOptions) {
+      if (isPublic || (isPublicReadOnly && publicAccessEnabled)) {
+        return { userId: 'anonymous', username: 'Anonymous User', roles: ['anonymous'] };
+      }
     }
 
     throw err || new UnauthorizedException('Authentication required');
@@ -255,6 +280,16 @@ export class OptionalJwtAuthGuard extends AuthGuard('jwt') {
       if (roles.includes('operator') || roles.includes('admin')) {
         return true;
       }
+    }
+
+    const authHeader = request.headers['authorization'];
+    const cookieToken = request.cookies?.access_token;
+    if (!serviceAuthenticated && !authHeader && !cookieToken) {
+      throw new UnauthorizedException({
+        message: 'Authentication required. Privileged operator access is restricted.',
+        code: 'UNAUTHORIZED_OPERATOR',
+        correlationId,
+      });
     }
 
     try {

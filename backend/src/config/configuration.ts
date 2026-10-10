@@ -57,7 +57,7 @@ export default (): AppConfig => ({
     expiresIn: process.env.JWT_ACCESS_EXPIRATION || process.env.JWT_EXPIRATION || '15m',
     refreshExpiresIn: process.env.JWT_REFRESH_EXPIRATION || '7d',
   },
-  publicAccessEnabled: process.env.PUBLIC_ACCESS_ENABLED !== 'false',
+  publicAccessEnabled: String(process.env.PUBLIC_ACCESS_ENABLED ?? 'true').toLowerCase() !== 'false',
   serviceAuth: {
     enabled: process.env.SERVICE_AUTH_ENABLED !== 'false',
   },

@@ -7,6 +7,7 @@ import { MetricCard } from '@/components/MetricCard';
 import { DecisionBadge } from '@/components/DecisionBadge';
 import { SimpleChart } from '@/components/SimpleChart';
 import { RegressionTable } from '@/components/RegressionTable';
+import { useAuth } from '@/lib/auth-context';
 import {
   Play,
   Activity,
@@ -17,9 +18,12 @@ import {
   TrendingDown,
   Clock,
   ArrowRight,
+  Info,
+  ShieldAlert,
 } from 'lucide-react';
 
 export default function DashboardPage() {
+  const { user, requireAuth, isPublicAccessEnabled, openLoginModal } = useAuth();
   const [runs, setRuns] = useState<any[]>([]);
   const [baselines, setBaselines] = useState<any[]>([]);
   const [regressions, setRegressions] = useState<any[]>([]);
@@ -47,20 +51,22 @@ export default function DashboardPage() {
   }, []);
 
   const handleQuickRun = async () => {
-    setTriggering(true);
-    try {
-      const newRun = await apiClient.post('/evaluations', {
-        datasetId: 'customer-support-v1',
-        model: 'gpt-4o',
-        provider: 'openai',
-        runAsync: false,
-      });
-      setRuns([newRun, ...runs]);
-    } catch (err: any) {
-      alert(`Evaluation failed: ${err.message}`);
-    } finally {
-      setTriggering(false);
-    }
+    requireAuth(async () => {
+      setTriggering(true);
+      try {
+        const newRun = await apiClient.post('/evaluations', {
+          datasetId: 'customer-support-v1',
+          model: 'gpt-4o',
+          provider: 'openai',
+          runAsync: false,
+        });
+        setRuns([newRun, ...runs]);
+      } catch (err: any) {
+        alert(`Evaluation failed: ${err.message}`);
+      } finally {
+        setTriggering(false);
+      }
+    }, 'Authentication required: Triggering evaluation runs requires an authenticated user session or service API key.');
   };
 
   const latestRun = runs[0];
@@ -140,6 +146,41 @@ export default function DashboardPage() {
           </button>
         </div>
       </div>
+
+      {/* Demo / Access Status Banner */}
+      {!user && (
+        isPublicAccessEnabled ? (
+          <div className="flex items-center justify-between gap-3 rounded-xl border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-xs text-amber-300">
+            <div className="flex items-center gap-2.5">
+              <Info className="h-4 w-4 shrink-0 text-amber-400" />
+              <span>
+                <strong>Public Demo Mode Active:</strong> You are viewing demonstration metrics and evaluation history in read-only mode. Sign in to execute live runs or alter baselines.
+              </span>
+            </div>
+            <button
+              onClick={() => openLoginModal('Sign in to run evaluations, manage baselines, and configure regression policies.')}
+              className="shrink-0 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 px-3 py-1 text-xs font-semibold text-amber-200 transition border border-amber-500/30"
+            >
+              Sign In
+            </button>
+          </div>
+        ) : (
+          <div className="flex items-center justify-between gap-3 rounded-xl border border-rose-500/20 bg-rose-500/10 px-4 py-3 text-xs text-rose-300">
+            <div className="flex items-center gap-2.5">
+              <ShieldAlert className="h-4 w-4 shrink-0 text-rose-400" />
+              <span>
+                <strong>Authentication Required:</strong> Public access is disabled in this environment. Please authenticate to view private benchmarks.
+              </span>
+            </div>
+            <button
+              onClick={() => openLoginModal()}
+              className="shrink-0 rounded-lg bg-rose-600 hover:bg-rose-500 px-3 py-1 text-xs font-semibold text-white transition"
+            >
+              Sign In Now
+            </button>
+          </div>
+        )
+      )}
 
       {/* Top Metrics Row */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">

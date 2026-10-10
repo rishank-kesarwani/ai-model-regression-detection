@@ -379,10 +379,25 @@ The platform implements production-grade, environment-driven service-to-service 
 
 | Access Mode | Target Endpoints | Allowed Credentials | Description |
 | :--- | :--- | :--- | :--- |
-| **Anonymous Read-Only Demo** | `GET /health`, `GET /api/v1/metrics`, `GET /api/v1/models/pricing`, `GET /api/v1/datasets`, `GET /api/v1/evaluations`, `GET /api/v1/baselines`, `GET /api/v1/policies`, `GET /api/v1/experiments`, `GET /api/v1/regression/history` | None required when `PUBLIC_ACCESS_ENABLED=true` | Visitors can inspect safe demo benchmarks, model pricing, and historical runs without logging in. |
+| **Anonymous Read-Only Demo** | `GET /health`, `GET /api/v1/metrics`, `GET /api/v1/models/pricing`, `GET /api/v1/datasets`, `GET /api/v1/evaluations`, `GET /api/v1/baselines`, `GET /api/v1/policies`, `GET /api/v1/experiments`, `GET /api/v1/regression/history` | None required when `PUBLIC_ACCESS_ENABLED=true` | Visitors can inspect safe demo benchmarks, model pricing, and historical runs without logging in. When `PUBLIC_ACCESS_ENABLED=false`, these require authentication (HTTP 401). |
 | **Authenticated User** | `GET /api/v1/auth/me`, User-owned views | JWT in `Authorization: Bearer <token>` or `access_token` cookie | Standard user operations for interactive web sessions. |
 | **Service-to-Service** | `POST /api/v1/regression/check`, `POST /api/v1/evaluations`, `POST /api/v1/github/evaluations` | `x-api-key: <key>` or `Authorization: Bearer <key>` | Internal callers matching the dynamic `MODEL_REGRESSION_CLIENT_*_API_KEY` registry. `@Public()` never bypasses this tier. |
 | **Privileged Operator** | `POST /api/v1/baselines/:id/activate`, `POST /api/v1/policies`, `POST /api/v1/datasets`, `POST /api/v1/datasets/:id/versions`, `DELETE /api/v1/datasets/:id`, `POST /api/v1/evaluations/:id/cancel`, `POST /api/v1/models/pricing`, `POST /api/v1/prompts` | Operator/Admin JWT or Operator Service Key (`ci`, `admin`) | Baseline promotions, policy modifications, cancellations, and dataset mutations. |
+
+### Optional Public Access Architecture (`NEXT_PUBLIC_ACCESS_ENABLED` & `PUBLIC_ACCESS_ENABLED`)
+
+Similar to the pattern in `ai-travel-planner`, the platform supports an explicit public access switch:
+- **Frontend Flag (`NEXT_PUBLIC_ACCESS_ENABLED`)**: Set in Vercel or local `.env`. When `true`, visitors can browse demo dashboards and view baseline records without logging in. Sensitive operations prompt for login. When `false`, anonymous demo flows are hidden and login is required.
+  > [!NOTE]
+  > Next.js inlines `NEXT_PUBLIC_*` values at build time. The frontend flag is a user experience control and **not a security boundary**.
+- **Backend Flag (`PUBLIC_ACCESS_ENABLED`)**: Set in Render or backend runtime `.env`. The backend is the authoritative enforcement point.
+  - When `true`: Explicit `@PublicReadOnly()` endpoints allow unauthenticated read-only inspection. Mutations and sensitive routes remain strictly protected.
+  - When `false`: All ordinary application endpoints require authentication; only infrastructure health routes (`GET /health`) and authentication endpoints (`POST /auth/login`) permit unauthenticated access.
+- **Abuse Prevention**:
+  - Global IP-based rate limiting via `RateLimitGuard` (`RATE_LIMIT_TTL=60`, `RATE_LIMIT_MAX=100`).
+  - Stricter limits applied to expensive routes (e.g. `POST /evaluations` limited to 20 req/min).
+  - Timeouts enforced globally via `TimeoutInterceptor` (60s).
+  - Sanitized error responses with correlation ID tracking via `HttpExceptionFilter`. Masking of internal error details in production.
 
 ---
 
@@ -669,8 +684,9 @@ AI_PLATFORM_MODEL_REGRESSION_API_KEY=mr_aip_live_secret_key_...
 NOTIFICATION_SERVICE_BASE_URL=https://notifications.example.com/api/v1
 NOTIFICATION_MODEL_REGRESSION_API_KEY=mr_notif_live_secret_key_...
 
-# Frontend Environment Variable
+# Frontend Environment Variables (Next.js)
 NEXT_PUBLIC_API_URL=http://localhost:4000/api/v1
+NEXT_PUBLIC_ACCESS_ENABLED=true
 ```
 
 ---

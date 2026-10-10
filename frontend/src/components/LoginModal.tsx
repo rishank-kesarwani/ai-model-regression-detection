@@ -2,10 +2,10 @@
 
 import React, { useState } from 'react';
 import { useAuth } from '@/lib/auth-context';
-import { X, Lock, User, ShieldCheck } from 'lucide-react';
+import { X, Lock, User, ShieldCheck, AlertCircle } from 'lucide-react';
 
 export function LoginModal() {
-  const { isLoginModalOpen, closeLoginModal, login } = useAuth();
+  const { isLoginModalOpen, closeLoginModal, login, loginReason, isPublicAccessEnabled } = useAuth();
   const [username, setUsername] = useState('admin@rishankkesharwani.com');
   const [password, setPassword] = useState('password123');
   const [error, setError] = useState('');
@@ -33,6 +33,7 @@ export function LoginModal() {
         <button
           onClick={closeLoginModal}
           className="absolute top-4 right-4 text-slate-400 hover:text-white transition"
+          aria-label="Close"
         >
           <X className="h-5 w-5" />
         </button>
@@ -46,6 +47,13 @@ export function LoginModal() {
             <p className="text-xs text-slate-400">Authenticate for admin operations and baseline locks</p>
           </div>
         </div>
+
+        {loginReason && (
+          <div className="mb-4 rounded-lg bg-primary-500/10 p-3 text-xs text-primary-300 border border-primary-500/20 flex items-start gap-2">
+            <AlertCircle className="h-4 w-4 shrink-0 text-primary-400 mt-0.5" />
+            <span>{loginReason}</span>
+          </div>
+        )}
 
         {error && (
           <div className="mb-4 rounded-lg bg-rose-500/10 p-3 text-xs text-rose-400 border border-rose-500/20">
@@ -92,13 +100,15 @@ export function LoginModal() {
             >
               {loading ? 'Authenticating...' : 'Sign In'}
             </button>
-            <button
-              type="button"
-              onClick={closeLoginModal}
-              className="w-full rounded-lg border border-surface-border bg-surface-elevated/50 py-2 text-xs text-slate-300 hover:bg-slate-800 transition"
-            >
-              Continue as Guest (Public Mode)
-            </button>
+            {isPublicAccessEnabled && (
+              <button
+                type="button"
+                onClick={closeLoginModal}
+                className="w-full rounded-lg border border-surface-border bg-surface-elevated/50 py-2 text-xs text-slate-300 hover:bg-slate-800 transition"
+              >
+                Continue as Guest (Public Demo Mode)
+              </button>
+            )}
           </div>
         </form>
       </div>
