@@ -17,6 +17,9 @@ export interface AppConfig {
     refreshExpiresIn: string;
   };
   publicAccessEnabled: boolean;
+  serviceAuth: {
+    enabled: boolean;
+  };
   rateLimit: {
     ttl: number;
     max: number;
@@ -55,6 +58,9 @@ export default (): AppConfig => ({
     refreshExpiresIn: process.env.JWT_REFRESH_EXPIRATION || '7d',
   },
   publicAccessEnabled: process.env.PUBLIC_ACCESS_ENABLED !== 'false',
+  serviceAuth: {
+    enabled: process.env.SERVICE_AUTH_ENABLED !== 'false',
+  },
   rateLimit: {
     ttl: parseInt(process.env.RATE_LIMIT_TTL || '60', 10),
     max: parseInt(process.env.RATE_LIMIT_MAX || '100', 10),

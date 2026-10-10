@@ -13,7 +13,7 @@ import { PromptsService } from './prompts.service';
 import { CreatePromptDto, CreatePromptVersionDto } from './dto/create-prompt.dto';
 import { OptionalJwtAuthGuard } from '../auth/jwt.strategy';
 import { ApiResponseDto } from '../common/dto/api-response.dto';
-import { Public } from '../common/decorators/public.decorator';
+import { RequireOperator, PublicReadOnly } from '../auth/decorators/auth-policy.decorator';
 
 @ApiTags('Prompts')
 @Controller('prompts')
@@ -21,33 +21,35 @@ import { Public } from '../common/decorators/public.decorator';
 export class PromptsController {
   constructor(private readonly promptsService: PromptsService) {}
 
+  @RequireOperator()
   @Post()
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Create a new prompt with an initial immutable version' })
+  @ApiOperation({ summary: 'Create a new prompt with an initial immutable version (Operator required)' })
   async create(@Body() createDto: CreatePromptDto, @Req() req: any) {
     const prompt = await this.promptsService.create(createDto, req.user);
     return ApiResponseDto.ok(prompt, 'Prompt created successfully');
   }
 
-  @Public()
+  @PublicReadOnly()
   @Get()
-  @ApiOperation({ summary: 'List all prompts and their latest versions' })
+  @ApiOperation({ summary: 'List all prompts and their latest versions (Demo read-only access)' })
   async findAll(@Query('project') project?: string) {
     const prompts = await this.promptsService.findAll(project);
     return ApiResponseDto.ok(prompts, 'Prompts retrieved successfully');
   }
 
-  @Public()
+  @PublicReadOnly()
   @Get(':idOrSlug')
-  @ApiOperation({ summary: 'Get a prompt by ID or slug' })
+  @ApiOperation({ summary: 'Get a prompt by ID or slug (Demo read-only access)' })
   async findOne(@Param('idOrSlug') idOrSlug: string) {
     const prompt = await this.promptsService.findOne(idOrSlug);
     return ApiResponseDto.ok(prompt, 'Prompt retrieved successfully');
   }
 
+  @RequireOperator()
   @Post(':idOrSlug/versions')
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Publish an immutable new version for a prompt' })
+  @ApiOperation({ summary: 'Publish an immutable new version for a prompt (Operator required)' })
   async addVersion(
     @Param('idOrSlug') idOrSlug: string,
     @Body() versionDto: CreatePromptVersionDto,

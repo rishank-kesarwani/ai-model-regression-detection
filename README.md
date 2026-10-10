@@ -371,13 +371,71 @@ Model pricing is dynamically configurable via the `ModelPricing` catalog:
 
 ---
 
-## 16. Authentication & Access Control
+## 16. Authentication & Dynamic Service-to-Service Access Control
 
-The platform adheres to portfolio engineering standards:
-- **`PUBLIC_ACCESS_ENABLED=true`**:
-  - Anonymous / guest users can view public dashboards, run demo evaluations, and inspect metrics.
-  - Authenticated users (via JWT access and refresh tokens) can create datasets, promote baselines, update policies, and manage settings.
-- **Safe Cookie Storage**: Supports `httpOnly` `access_token` and `refresh_token` cookies with single-refresh auto-retry.
+The platform implements production-grade, environment-driven service-to-service authentication and multi-tier access control:
+
+### Access Control Modes
+
+| Access Mode | Target Endpoints | Allowed Credentials | Description |
+| :--- | :--- | :--- | :--- |
+| **Anonymous Read-Only Demo** | `GET /health`, `GET /api/v1/metrics`, `GET /api/v1/models/pricing`, `GET /api/v1/datasets`, `GET /api/v1/evaluations`, `GET /api/v1/baselines`, `GET /api/v1/policies`, `GET /api/v1/experiments`, `GET /api/v1/regression/history` | None required when `PUBLIC_ACCESS_ENABLED=true` | Visitors can inspect safe demo benchmarks, model pricing, and historical runs without logging in. |
+| **Authenticated User** | `GET /api/v1/auth/me`, User-owned views | JWT in `Authorization: Bearer <token>` or `access_token` cookie | Standard user operations for interactive web sessions. |
+| **Service-to-Service** | `POST /api/v1/regression/check`, `POST /api/v1/evaluations`, `POST /api/v1/github/evaluations` | `x-api-key: <key>` or `Authorization: Bearer <key>` | Internal callers matching the dynamic `MODEL_REGRESSION_CLIENT_*_API_KEY` registry. `@Public()` never bypasses this tier. |
+| **Privileged Operator** | `POST /api/v1/baselines/:id/activate`, `POST /api/v1/policies`, `POST /api/v1/datasets`, `POST /api/v1/datasets/:id/versions`, `DELETE /api/v1/datasets/:id`, `POST /api/v1/evaluations/:id/cancel`, `POST /api/v1/models/pricing`, `POST /api/v1/prompts` | Operator/Admin JWT or Operator Service Key (`ci`, `admin`) | Baseline promotions, policy modifications, cancellations, and dataset mutations. |
+
+---
+
+### Dynamic Service Key Registry
+
+Internal calling services are onboarded by adding an environment variable matching:
+```env
+MODEL_REGRESSION_CLIENT_<SERVICE_NAME>_API_KEY=<strong-unique-secret>
+```
+**Zero source-code changes are required to register a new calling service.**
+
+#### Active Service Configurations:
+1. **`ai-pr-review-platform`**:
+   - Environment Variable: `MODEL_REGRESSION_CLIENT_PR_REVIEW_API_KEY`
+   - Normalized Service Identity: `pr-review`
+   - Scoping: `ai-pr-review-platform`, `pr-review`, `default`
+   - Request Header: `x-api-key: <key>`
+2. **`ai-pipeline-observability`**:
+   - Environment Variable: `MODEL_REGRESSION_CLIENT_PIPELINE_OBSERVABILITY_API_KEY`
+   - Normalized Service Identity: `pipeline-observability`
+   - Scoping: `ai-pipeline-observability`, `pipeline-observability`, `default`
+   - Request Header: `Authorization: Bearer <key>`
+3. **Continuous Integration & Automation (`ci`)**:
+   - Environment Variable: `MODEL_REGRESSION_CLIENT_CI_API_KEY`
+   - Normalized Service Identity: `ci`
+   - Scoping: `*` (All projects, with operator privileges)
+
+#### Security & Tenant Isolation:
+- **Constant-Time Verification**: Compares candidate secrets using `crypto.timingSafeEqual` over fixed-length SHA-256 digests.
+- **Credential Protection**: Raw secrets are never logged, returned in responses, or exposed to frontend code.
+- **Duplicate Detection**: The registry rejects duplicate keys across services to prevent ambiguous service identity.
+- **Production Validation**: In production (`NODE_ENV=production`), application startup fails immediately if service auth is enabled and no valid keys are configured, or if placeholder keys are used.
+- **Tenant Scoping**: Service keys are scoped to authorized project names (e.g. `pr-review` cannot evaluate unauthorized external tenant projects; attempts return `403 Forbidden`).
+- **Correlation Tracking**: Every request is assigned an `X-Correlation-ID` header. Authentication and authorization failures include the correlation ID for log tracing.
+
+#### Generating Secrets & Render Configuration:
+To generate a cryptographically strong secret:
+```bash
+openssl rand -hex 32
+```
+In Render:
+1. Open the **ai-model-regression-detection** Web Service.
+2. Navigate to **Environment**.
+3. Add `MODEL_REGRESSION_CLIENT_PR_REVIEW_API_KEY` with the generated secret.
+4. Add the corresponding key in `ai-pr-review-platform` as `MODEL_REGRESSION_API_KEY`.
+
+#### Key Rotation Procedure:
+Zero-downtime rotation is supported:
+1. Set `MODEL_REGRESSION_CLIENT_<SERVICE>_API_KEY_PREVIOUS` to the old key.
+2. Set `MODEL_REGRESSION_CLIENT_<SERVICE>_API_KEY` to the new secret.
+3. Deploy Model Regression (both keys are accepted).
+4. Update the calling service's environment with the new key and redeploy.
+5. Remove `MODEL_REGRESSION_CLIENT_<SERVICE>_API_KEY_PREVIOUS`.
 
 ---
 
@@ -386,6 +444,14 @@ The platform adheres to portfolio engineering standards:
 This is the primary endpoint consumed by **`ai-pr-review-platform`**:
 
 ### Endpoint: `POST /api/v1/regression/check`
+
+#### Authentication Headers:
+```http
+Content-Type: application/json
+x-api-key: <MODEL_REGRESSION_CLIENT_PR_REVIEW_API_KEY>
+X-Correlation-ID: <optional-uuid>
+```
+*(Also supports `Authorization: Bearer <key>` or authenticated User JWT)*
 
 #### Request Payload:
 ```json
@@ -475,24 +541,33 @@ http://localhost:4000/api/docs
 
 ### Core Endpoints Summary
 
-| Method | Endpoint | Description |
-| :--- | :--- | :--- |
-| `GET` | `/health` | Health check endpoint for Render/orchestration |
-| `POST`| `/api/v1/auth/login` | Authenticate and receive JWT tokens |
-| `POST`| `/api/v1/datasets` | Create evaluation dataset |
-| `GET` | `/api/v1/datasets` | List all datasets |
-| `GET` | `/api/v1/datasets/:id` | Get dataset details and cases |
-| `POST`| `/api/v1/evaluations` | Trigger evaluation run |
-| `GET` | `/api/v1/evaluations` | List recent evaluation runs |
-| `GET` | `/api/v1/evaluations/:id` | Get evaluation run summary & regressions |
-| `POST`| `/api/v1/evaluations/:id/cancel` | Cancel active evaluation run |
-| `POST`| `/api/v1/baselines` | Promote run to baseline |
-| `GET` | `/api/v1/baselines` | List all baselines |
-| `POST`| `/api/v1/regression/check`| Primary PR review regression check contract |
-| `GET` | `/api/v1/regression/history`| Historical regression incidents |
-| `POST`| `/api/v1/experiments` | Run A/B model/prompt comparison |
-| `GET` | `/api/v1/models/pricing` | Get model pricing catalog |
-| `GET` | `/api/v1/metrics` | List all registered evaluators & metrics |
+| Method | Endpoint | Access Tier | Allowed Credentials | Description |
+| :--- | :--- | :--- | :--- | :--- |
+| `GET` | `/health` | **Public** | None | Health check endpoint for Render/Kubernetes probes |
+| `POST`| `/api/v1/auth/login` | **Public** | None | Authenticate credentials and issue JWT tokens & cookies |
+| `POST`| `/api/v1/auth/refresh` | **Public** | Refresh Token | Refresh access token via cookie or body |
+| `GET` | `/api/v1/auth/me` | **Authenticated User** | User JWT | Get authenticated profile session info |
+| `POST`| `/api/v1/regression/check` | **Service-to-Service** | `x-api-key` / `Bearer <key>` | PR review regression evaluation against baseline |
+| `GET` | `/api/v1/regression/history`| **Public Read-Only** | None (or User/Service) | Historical regression incidents |
+| `POST`| `/api/v1/evaluations` | **Service or User** | `x-api-key` / `Bearer <key>` / User JWT | Trigger evaluation run against dataset & baseline |
+| `GET` | `/api/v1/evaluations` | **Public Read-Only** | None (or User/Service) | List recent evaluation runs |
+| `GET` | `/api/v1/evaluations/:id` | **Public Read-Only** | None (or User/Service) | Get evaluation run summary & regression metrics |
+| `GET` | `/api/v1/evaluations/:id/results` | **Public Read-Only** | None (or User/Service) | Case-by-case outputs and evaluation scores |
+| `POST`| `/api/v1/evaluations/:id/cancel` | **Privileged Operator** | Operator JWT / `ci` Key | Cancel active or queued evaluation run |
+| `POST`| `/api/v1/github/evaluations` | **Service-to-Service** | `x-api-key` / `Bearer <key>` | External CI PR evaluation trigger adapter |
+| `GET` | `/api/v1/baselines` | **Public Read-Only** | None (or User/Service) | List reference baselines |
+| `POST`| `/api/v1/baselines` | **Privileged Operator** | Operator JWT / `ci` Key | Create baseline from evaluation run |
+| `POST`| `/api/v1/baselines/:id/activate` | **Privileged Operator** | Operator JWT / `ci` Key | Promote and activate baseline for dataset |
+| `GET` | `/api/v1/datasets` | **Public Read-Only** | None (or User/Service) | List evaluation datasets |
+| `POST`| `/api/v1/datasets` | **Privileged Operator** | Operator JWT / `ci` Key | Create evaluation dataset |
+| `POST`| `/api/v1/datasets/:id/versions` | **Privileged Operator** | Operator JWT / `ci` Key | Publish immutable benchmark version |
+| `DELETE`| `/api/v1/datasets/:id` | **Privileged Operator** | Operator JWT / `ci` Key | Delete dataset and retention data |
+| `GET` | `/api/v1/policies` | **Public Read-Only** | None (or User/Service) | List regression policies |
+| `POST`| `/api/v1/policies` | **Privileged Operator** | Operator JWT / `ci` Key | Create custom regression policy |
+| `POST`| `/api/v1/experiments` | **Privileged Operator** | Operator JWT / `ci` Key | Run side-by-side A/B model/prompt comparison |
+| `GET` | `/api/v1/models/pricing` | **Public Read-Only** | None (or User/Service) | Get model pricing catalog |
+| `POST`| `/api/v1/models/pricing` | **Privileged Operator** | Operator JWT / `ci` Key | Update configurable model token pricing |
+| `GET` | `/api/v1/metrics` | **Public Read-Only** | None (or User/Service) | List registered evaluators & metrics |
 
 ---
 

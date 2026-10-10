@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, NestModule, MiddlewareConsumer } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { MongooseModule } from '@nestjs/mongoose';
 import configuration from './config/configuration';
@@ -15,6 +15,7 @@ import { RegressionModule } from './regression/regression.module';
 import { GitHubModule } from './github/github.module';
 import { ExperimentsModule } from './experiments/experiments.module';
 import { MetricsModule } from './metrics/metrics.module';
+import { CorrelationIdMiddleware } from './common/middleware/correlation-id.middleware';
 
 @Module({
   imports: [
@@ -49,4 +50,8 @@ import { MetricsModule } from './metrics/metrics.module';
     MetricsModule,
   ],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) {
+    consumer.apply(CorrelationIdMiddleware).forRoutes('*');
+  }
+}

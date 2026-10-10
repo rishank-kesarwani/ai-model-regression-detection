@@ -4,7 +4,7 @@ import { ModelsService } from './models.service';
 import { UpdateModelPricingDto } from './dto/pricing.dto';
 import { OptionalJwtAuthGuard } from '../auth/jwt.strategy';
 import { ApiResponseDto } from '../common/dto/api-response.dto';
-import { Public } from '../common/decorators/public.decorator';
+import { RequireOperator, PublicReadOnly } from '../auth/decorators/auth-policy.decorator';
 
 @ApiTags('Models & Pricing')
 @Controller('models')
@@ -12,17 +12,17 @@ import { Public } from '../common/decorators/public.decorator';
 export class ModelsController {
   constructor(private readonly modelsService: ModelsService) {}
 
-  @Public()
+  @PublicReadOnly()
   @Get('pricing')
-  @ApiOperation({ summary: 'Get all model pricing configurations' })
+  @ApiOperation({ summary: 'Get all model pricing configurations (Demo read-only access)' })
   async getAllPricing() {
     const list = await this.modelsService.getAllPricing();
     return ApiResponseDto.ok(list, 'Model pricing catalog retrieved');
   }
 
-  @Public()
+  @PublicReadOnly()
   @Get('pricing/:provider/:model')
-  @ApiOperation({ summary: 'Get pricing for a specific model' })
+  @ApiOperation({ summary: 'Get pricing for a specific model (Demo read-only access)' })
   async getPricing(
     @Param('provider') provider: string,
     @Param('model') model: string,
@@ -31,9 +31,10 @@ export class ModelsController {
     return ApiResponseDto.ok(item, 'Pricing retrieved');
   }
 
+  @RequireOperator()
   @Post('pricing')
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Update or add configurable model pricing' })
+  @ApiOperation({ summary: 'Update or add configurable model pricing (Operator required)' })
   async updatePricing(@Body() dto: UpdateModelPricingDto) {
     const saved = await this.modelsService.upsertPricing(dto);
     return ApiResponseDto.ok(saved, 'Model pricing updated');

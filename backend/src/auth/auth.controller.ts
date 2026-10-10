@@ -15,6 +15,7 @@ import { AuthService } from './auth.service';
 import { LoginDto, RefreshTokenDto } from './dto/login.dto';
 import { OptionalJwtAuthGuard } from './jwt.strategy';
 import { Public } from '../common/decorators/public.decorator';
+import { RequireUser } from './decorators/auth-policy.decorator';
 import { ApiResponseDto } from '../common/dto/api-response.dto';
 
 @ApiTags('Authentication')
@@ -84,8 +85,9 @@ export class AuthController {
   }
 
   @UseGuards(OptionalJwtAuthGuard)
+  @RequireUser()
   @Get('me')
-  @ApiOperation({ summary: 'Get current user session info' })
+  @ApiOperation({ summary: 'Get current user session info (Requires active session)' })
   async getProfile(@Req() req: any) {
     return ApiResponseDto.ok(req.user, 'Current session retrieved');
   }

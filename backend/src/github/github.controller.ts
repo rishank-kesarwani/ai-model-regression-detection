@@ -4,7 +4,7 @@ import { GitHubService } from './github.service';
 import { GitHubEvaluationDto } from './dto/github-eval.dto';
 import { OptionalJwtAuthGuard } from '../auth/jwt.strategy';
 import { ApiResponseDto } from '../common/dto/api-response.dto';
-import { Public } from '../common/decorators/public.decorator';
+import { RequireServiceAuth } from '../auth/decorators/auth-policy.decorator';
 
 @ApiTags('GitHub Integration')
 @Controller('github')
@@ -12,7 +12,7 @@ import { Public } from '../common/decorators/public.decorator';
 export class GitHubController {
   constructor(private readonly githubService: GitHubService) {}
 
-  @Public()
+  @RequireServiceAuth({ allowUser: true })
   @Post('evaluations')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
@@ -20,6 +20,7 @@ export class GitHubController {
     description: 'Enqueues and processes an evaluation for a PR commit, returning regression status.',
   })
   @ApiResponse({ status: 200, description: 'Evaluation run triggered and evaluated' })
+  @ApiResponse({ status: 401, description: 'Unauthorized service API key or token' })
   async triggerEvaluation(@Body() dto: GitHubEvaluationDto, @Req() req: any) {
     const result = await this.githubService.triggerPREvaluation(dto, req.user);
     return ApiResponseDto.ok(result, 'GitHub PR evaluation completed');

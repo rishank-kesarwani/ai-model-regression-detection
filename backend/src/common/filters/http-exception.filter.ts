@@ -45,6 +45,16 @@ export class HttpExceptionFilter implements ExceptionFilter {
       message = 'An unexpected server error occurred. Please contact support.';
     }
 
+    const correlationId =
+      request.correlationId ||
+      (request.headers['x-correlation-id'] as string) ||
+      (request.headers['x-request-id'] as string) ||
+      'unknown';
+
+    if (correlationId !== 'unknown') {
+      response.setHeader('X-Correlation-ID', correlationId);
+    }
+
     response.status(status).json({
       success: false,
       message: Array.isArray(message) ? message.join(', ') : message,
@@ -52,6 +62,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
         code,
         statusCode: status,
         path: request.url,
+        correlationId,
         details,
       },
       timestamp: new Date().toISOString(),
