@@ -62,6 +62,7 @@ export function Navbar() {
                 height={40}
                 className="h-full w-full object-contain aspect-square p-0.5"
                 priority
+                unoptimized
               />
             </div>
             <div className="min-w-0 truncate">
